@@ -21,7 +21,7 @@ def onReceivedData(msg):
 
 		
 
-rospy.init_node("entropy")
+rospy.init_node("entropyTest")
 sub_topic_data = '/neurodata'
 
 numChans = rospy.get_param('/numChans', default=16)
