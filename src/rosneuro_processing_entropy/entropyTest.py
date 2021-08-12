@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from operator import le
 import rospy
 import math
 import numpy as np
