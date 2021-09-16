@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from numpy.core.fromnumeric import shape
 import rospy
 import math
 import numpy as np
@@ -30,6 +31,7 @@ winLength = rospy.get_param('/winLength', default=1.5)
 winShift = rospy.get_param('/winShift', default=0.125)
 srate = rospy.get_param('/srate', default=512)
 bufferlen = math.floor(winLength*srate)
+buffershift = math.floor(winShift*srate)
 buffer = RingBuffer(bufferlen)
 filter_order = rospy.get_param('/filter_order', default=4)
 filter_lowf = rospy.get_param('/filter_lowf', default=16)
@@ -38,6 +40,7 @@ btfilter = ButterFilter(filter_order, low_f=filter_lowf, high_f=filter_highf, fi
 hilb = Hilbert()
 nbins = rospy.get_param('/nbins', default=32)
 entropy = ShannonEntropy(nbins)
+entropyArray = []
 
 while not rospy.is_shutdown():
 	rospy.loginfo("Waiting for message")
@@ -45,7 +48,8 @@ while not rospy.is_shutdown():
 	sub_data = rospy.Subscriber(sub_topic_data, NeuroFrame, onReceivedData)
 	rospy.loginfo("Data received")
 	rospy.sleep(1)
-	chunk = eegdata
+	chunk = np.array(eegdata)
+	chunk = np.reshape(chunk, (numChans,numSamples))
 	buffer.append(chunk)
 	if buffer.isFull:
 		rospy.loginfo("Full buffer")
@@ -56,3 +60,7 @@ while not rospy.is_shutdown():
 		hilb.apply(dfilt)
 		denv = hilb.get_envelope()
 		dentropy = entropy.apply(denv)
+		temp = np.array(dentropy)
+		entropyArray.append(temp)
+		print(entropyArray)
+		print(np.shape(entropyArray))

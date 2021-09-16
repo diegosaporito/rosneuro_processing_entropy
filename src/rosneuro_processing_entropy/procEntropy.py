@@ -24,6 +24,7 @@ class SmrBci:
 		self.winShift = rospy.get_param('/winShift', default=0.125)
 		self.srate = rospy.get_param('/srate', default=512)
 		bufferlen = math.floor(self.winLength*self.srate)
+		buffershift = math.floor(self.winShift*self.srate)
 		self.buffer = RingBuffer(bufferlen)
 		filter_order = rospy.get_param('/filter_order', default=4)
 		filter_lowf = rospy.get_param('/filter_lowf', default=16)
@@ -85,7 +86,8 @@ class SmrBci:
 			return False
 		labelname = ['STAND', 'WALK']
 		t = rospy.Time.now()
-		chunk = self.data
+		chunk = np.array(self.data)
+		chunk = np.reshape(chunk, (self.numChans, self.numSamples))
 		self.buffer.append(chunk)
 		if self.buffer.isFull:
 			data = np.array(self.buffer.data)
