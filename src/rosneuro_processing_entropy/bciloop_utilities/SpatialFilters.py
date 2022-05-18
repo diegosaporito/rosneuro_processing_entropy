@@ -2,8 +2,8 @@ import numpy as np
 import scipy.linalg as la
 
 
-def car_filter(data, axis=0):
-    ref = np.mean(data, axis=axis)
+def car_filter(data):
+    ref = np.mean(data, axis=1)
     return data - ref[:, np.newaxis]
 
 

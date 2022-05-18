@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from numpy.core.fromnumeric import shape
 import rospy
 import math
 import numpy as np
@@ -13,12 +12,12 @@ from rosneuro_processing_entropy.bciloop_utilities.Entropy import ShannonEntropy
 from rosneuro_processing_entropy.bciloop_utilities.SpatialFilters import CommonSpatialPatterns, car_filter
 from rosneuro_processing_entropy.bciloop_utilities.RingBuffer import RingBuffer
 
-eegdata = None
+eegdata = []
 
 def onReceivedData(msg):
 	if (msg.eeg.info.nsamples == numSamples) and (msg.eeg.info.nchannels == numChans):
 		global eegdata
-		eegdata = msg.eeg.data
+		eegdata.append(msg.eeg.data)
 
 		
 
@@ -33,34 +32,42 @@ srate = rospy.get_param('/srate', default=512)
 bufferlen = math.floor(winLength*srate)
 buffershift = math.floor(winShift*srate)
 buffer = RingBuffer(bufferlen)
-filter_order = rospy.get_param('/filter_order', default=4)
-filter_lowf = rospy.get_param('/filter_lowf', default=16)
-filter_highf = rospy.get_param('/filter_highf', default=30)
-btfilter = ButterFilter(filter_order, low_f=filter_lowf, high_f=filter_highf, filter_type='bandpass', fs=srate)
+filter_order = rospy.get_param('/filter_order', default=[4])
+filter_lowf = rospy.get_param('/filter_lowf', default=[16])
+filter_highf = rospy.get_param('/filter_highf', default=[30])
+btfilter = [ButterFilter(filter_order[i], low_f=filter_lowf[i], high_f=filter_highf[i], filter_type='bandpass', fs=srate) for i in range(len(filter_lowf))]
 hilb = Hilbert()
 nbins = rospy.get_param('/nbins', default=32)
 entropy = ShannonEntropy(nbins)
-entropyArray = []
+numBands = len(btfilter)
+dentropy = []
 
 while not rospy.is_shutdown():
 	rospy.loginfo("Waiting for message")
-	rospy.wait_for_message(sub_topic_data, NeuroFrame)
-	sub_data = rospy.Subscriber(sub_topic_data, NeuroFrame, onReceivedData)
-	rospy.loginfo("Data received")
-	rospy.sleep(1)
-	chunk = np.array(eegdata)
-	chunk = np.reshape(chunk, (numChans,numSamples))
-	buffer.append(chunk)
-	if buffer.isFull:
-		rospy.loginfo("Full buffer")
-		data = np.array(buffer.data)
-		np.clip(data, -400, 400, out=data)
-		dcar = car_filter(data, axis=1)
-		dfilt = btfilter.apply_filt(dcar)
-		hilb.apply(dfilt)
-		denv = hilb.get_envelope()
-		dentropy = entropy.apply(denv)
-		temp = np.array(dentropy)
-		entropyArray.append(temp)
-		print(entropyArray)
-		print(np.shape(entropyArray))
+	try:
+		rospy.wait_for_message(sub_topic_data, NeuroFrame, 10)
+		sub_data = rospy.Subscriber(sub_topic_data, NeuroFrame, onReceivedData)
+		rospy.loginfo("Data received")
+		rospy.sleep(1)
+	except rospy.exceptions.ROSException as e:
+		rospy.loginfo(e)
+		break
+
+	for i in range(len(eegdata)):
+		chunk = np.array(eegdata[i])
+		map = np.reshape(chunk, (numSamples, numChans))
+		buffer.append(map)
+		if buffer.isFull:
+			flag = True
+			rospy.loginfo("Full buffer")
+			data = np.array(buffer.data)
+			np.clip(data, -400, 400, out=data)
+			dcar = car_filter(data)
+			dfilt = btfilter[0].apply_filt(dcar)
+			hilb.apply(dfilt)
+			denv = hilb.get_envelope()
+			dentropy.append(entropy.apply(denv))
+			print(np.shape(dentropy))
+
+	#np.save("ent.npy", dentropy)
+	#rospy.spin()'''

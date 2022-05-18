@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from tempfile import tempdir
+from rosneuro_msgs import msg
 import rospy
 import math
 import numpy as np
@@ -23,14 +25,8 @@ class SmrBci:
 		self.hilb = Hilbert()
 		self.nbins = rospy.get_param('/nbins', default=32)
 		self.entropy = ShannonEntropy(self.nbins)
-		if rospy.has_param('/csp_coeff'):
-			self.csp_coeff = np.load(rospy.get_param('/csp_coeff'))
-		else:
-			self.csp_coeff = np.load('path-to-csp_coeff')
-		cspdimm = rospy.get_param('/cspdimm', default=8)
-		self.csp = CommonSpatialPatterns(cspdimm, self.csp_coeff)
-		self.clf = pickle.load(open('path-to-clf', 'rb'))
 		self.numClasses = rospy.get_param('/numClasses', default=2)
+		self.dentropy = []
 
 
 		self.classLabels = np.empty(self.numClasses)
@@ -42,7 +38,7 @@ class SmrBci:
 
 		#self.srv_classify = rospy.ServiceProxy('classify', self.onRequestClassify)
 		#self.srv_reset = rospy.ServiceProxy('reset', self.onRequestReset)
-
+		
 		self.new_neuro_frame = False
 
 		#self.msg_.classLabels = self.classLabels
@@ -62,11 +58,12 @@ class SmrBci:
 		return buffer
 
 	def configureFilter(self):
-		filter_order = rospy.get_param('/filter_order', default=[4])
-		filter_lowf = rospy.get_param('/filter_lowf', default=[16])
-		filter_highf = rospy.get_param('/filter_highf', default=[30])
+		filter_order = rospy.get_param('/filter_order', default=[4, 8, 4])
+		filter_lowf = rospy.get_param('/filter_lowf', default=[16, 20, 18])
+		filter_highf = rospy.get_param('/filter_highf', default=[30, 32, 30])
 		btfilter = [ButterFilter(filter_order[i], low_f=filter_lowf[i], high_f=filter_highf[i], filter_type='bandpass', fs=self.srate) for i in range(len(filter_lowf))]
-		
+		self.numBands = len(btfilter)
+
 		return btfilter
 	
 	def getFrameRate(self):
@@ -81,9 +78,9 @@ class SmrBci:
 	def onReceivedData(self, msg):
 		if (msg.eeg.info.nsamples == self.numSamples) and (msg.eeg.info.nchannels == self.numChans):
 			self.new_neuro_frame = True
-			self.data = msg.eeg.data
+			self.received_data = msg.eeg.data
 			#self.msg.soft_predict.info = self.msg.hard_predict.info = msg.info
-	
+			
 	def onRequestClassify (self, req, res):
 		return self.Classify()
 	
@@ -115,9 +112,6 @@ class SmrBci:
 			self.final_entropy = np.empty([int(np.shape(self.dentropy)[0]/self.numBands), self.numChans, self.numBands])
 			for i in range(self.numBands):
 				self.final_entropy[:,:, i] = temp[i::self.numBands,:]
-		
-			dcsp = self.csp.apply(self.final_entropy.reshape(1, len(self.final_entropy)))
-			dproba = self.clf.predict_proba(dcsp)
 		
 		elapsed = (rospy.Time.now() - t).to_sec()
 		if elapsed > self.winShift:
