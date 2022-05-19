@@ -23,12 +23,14 @@ class SmrBci:
 		self.hilb = Hilbert()
 		self.nbins = rospy.get_param('/nbins', default=32)
 		self.entropy = ShannonEntropy(self.nbins)
+		self.csp_coeff = [None] * self.numBands
 		if rospy.has_param('/csp_coeff'):
 			self.csp_coeff = np.load(rospy.get_param('/csp_coeff'))
 		else:
-			self.csp_coeff = np.load('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/csp_coeff_1.npy')
+			for i in range(self.numBands):
+				self.csp_coeff[i] = np.load('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/csp_coeff_{}.npy'.format(i+1))
 		cspdimm = rospy.get_param('/cspdimm', default=8)
-		self.csp = CommonSpatialPatterns(cspdimm, self.csp_coeff)
+		self.csp = [CommonSpatialPatterns(cspdimm, self.csp_coeff[i]) for i in range(self.numBands)]
 		self.clf = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/clf', 'rb'))
 		self.numClasses = rospy.get_param('/numClasses', default=2)
 
@@ -109,7 +111,7 @@ class SmrBci:
 				self.hilb.apply(dfilt)
 				denv = self.hilb.get_envelope()
 				self.dentropy = self.entropy.apply(denv)
-				dcsp = self.csp.apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
+				dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
 				self.dproba = self.clf.predict_proba(dcsp)
 		else:
 			rospy.loginfo('Filling the buffer')
