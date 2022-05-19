@@ -26,10 +26,10 @@ class SmrBci:
 		if rospy.has_param('/csp_coeff'):
 			self.csp_coeff = np.load(rospy.get_param('/csp_coeff'))
 		else:
-			self.csp_coeff = np.load('path-to-csp_coeff')
+			self.csp_coeff = np.load('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/csp_coeff_1.npy')
 		cspdimm = rospy.get_param('/cspdimm', default=8)
 		self.csp = CommonSpatialPatterns(cspdimm, self.csp_coeff)
-		self.clf = pickle.load(open('path-to-clf', 'rb'))
+		self.clf = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/clf', 'rb'))
 		self.numClasses = rospy.get_param('/numClasses', default=2)
 
 
@@ -66,7 +66,8 @@ class SmrBci:
 		filter_lowf = rospy.get_param('/filter_lowf', default=[16])
 		filter_highf = rospy.get_param('/filter_highf', default=[30])
 		btfilter = [ButterFilter(filter_order[i], low_f=filter_lowf[i], high_f=filter_highf[i], filter_type='bandpass', fs=self.srate) for i in range(len(filter_lowf))]
-		
+		self.numBands = len(btfilter)
+
 		return btfilter
 	
 	def getFrameRate(self):
@@ -96,7 +97,7 @@ class SmrBci:
 			return False
 		labelname = ['STAND', 'WALK']
 		t = rospy.Time.now()
-		chunk = np.array(self.received_data)
+		chunk = np.array(self.data)
 		map = np.reshape(chunk, (self.numSamples, self.numChans))
 		self.buffer.append(map)
 		if self.buffer.isFull:
@@ -107,17 +108,18 @@ class SmrBci:
 				dfilt = self.btfilter[i].apply_filt(dcar)
 				self.hilb.apply(dfilt)
 				denv = self.hilb.get_envelope()
-				self.dentropy.append(self.entropy.apply(denv))
+				self.dentropy = self.entropy.apply(denv)
+				dcsp = self.csp.apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
+				self.dproba = self.clf.predict_proba(dcsp)
 		else:
 			rospy.loginfo('Filling the buffer')
-		if self.buffer.isFull:
+
+		'''if self.buffer.isFull:
 			temp = np.array(self.dentropy)
 			self.final_entropy = np.empty([int(np.shape(self.dentropy)[0]/self.numBands), self.numChans, self.numBands])
 			for i in range(self.numBands):
-				self.final_entropy[:,:, i] = temp[i::self.numBands,:]
-		
-			dcsp = self.csp.apply(self.final_entropy.reshape(1, len(self.final_entropy)))
-			dproba = self.clf.predict_proba(dcsp)
+				self.final_entropy[:,:, i] = temp[i::self.numBands,:]'''
+
 		
 		elapsed = (rospy.Time.now() - t).to_sec()
 		if elapsed > self.winShift:

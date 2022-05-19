@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from procEntropyTest import SmrBci
+from procEntropy import SmrBci
 import rospy
 import math
 import numpy as np
@@ -28,6 +28,6 @@ while not rospy.is_shutdown():
 		break
 	if bci.Classify():
 		if bci.buffer.isFull:
-			print(np.shape(bci.dentropy))
-			print(np.shape(bci.final_entropy))
+			print(bci.dentropy)
+			print(bci.dproba)
 
