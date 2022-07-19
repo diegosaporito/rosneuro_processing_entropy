@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 from procEntropy import SmrBci
 import rospy
-import math
 import numpy as np
-import pickle
 from rosneuro_msgs.msg import NeuroFrame
 from rosneuro_msgs.msg import NeuroOutput
-from std_srvs.srv import Empty
 from rosneuro_processing_entropy.bciloop_utilities.TimeFilters import ButterFilter
 from rosneuro_processing_entropy.bciloop_utilities.Hilbert import Hilbert
 from rosneuro_processing_entropy.bciloop_utilities.Entropy import ShannonEntropy

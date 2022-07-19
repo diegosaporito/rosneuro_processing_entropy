@@ -65,9 +65,9 @@ class SmrBci:
 		return buffer
 
 	def configureFilter(self):
-		filter_order = self.data_dict["filter_order_list"]
-		filter_lowf = self.data_dict["filter_lowf"]
-		filter_highf = self.data_dict["filter_highf"]
+		filter_order = self.data_dict["filter_order_list"][0]
+		filter_lowf = self.data_dict["filter_lowf"][0]
+		filter_highf = self.data_dict["filter_highf"][0]
 		btfilter = [ButterFilter(filter_order[i], low_f=filter_lowf[i], high_f=filter_highf[i], filter_type='bandpass', fs=self.srate) for i in range(len(filter_lowf))]
 		self.numBands = len(btfilter)
 
@@ -119,10 +119,11 @@ class SmrBci:
 			self.dproba = self.clf.predict_proba(features)
 		else:
 			rospy.loginfo('Filling the buffer')
-		
+
 		elapsed = (rospy.Time.now() - t).to_sec()
 		if elapsed > self.winShift:
 			rospy.loginfo('Warning! The loop had a delay of ' + str(elapsed-self.winShift) + ' second')
 		else:
 			rospy.sleep(self.winShift-elapsed)
+		self.new_neuro_frame = False
 		return True
