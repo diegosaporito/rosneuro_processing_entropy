@@ -3,6 +3,7 @@ import rospy
 import math
 import numpy as np
 import pickle
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from rosneuro_msgs.msg import NeuroFrame
 from rosneuro_msgs.msg import NeuroOutput
 from std_srvs.srv import Empty
@@ -16,28 +17,28 @@ class SmrBci:
 	def __init__(self):
 		self.sub_topic_data = '/neurodata'
 		self.pub_topic_data = 'neuroprediction'
+		self.data_dict = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data', 'rb'))
+		#print(self.data_dict)
 
 	def configure(self):
 		self.buffer = self.configureBuffer()
 		self.btfilter = self.configureFilter()
 		self.hilb = Hilbert()
-		self.nbins = rospy.get_param('/nbins', default=32)
+		self.nbins = self.data_dict["nbins"]
 		self.entropy = ShannonEntropy(self.nbins)
 		self.csp_coeff = [None] * self.numBands
-		if rospy.has_param('/csp_coeff'):
-			self.csp_coeff = np.load(rospy.get_param('/csp_coeff'))
-		else:
-			for i in range(self.numBands):
-				self.csp_coeff[i] = np.load('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/csp_coeff_{}.npy'.format(i+1))
-		cspdimm = rospy.get_param('/cspdimm', default=8)
+		for i in range(self.numBands):
+			self.csp_coeff[i] = self.data_dict["csp_coeff_{}".format(i+1)]
+		cspdimm = self.data_dict["cspdimm"]
 		self.csp = [CommonSpatialPatterns(cspdimm, self.csp_coeff[i]) for i in range(self.numBands)]
-		self.clf = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/clf', 'rb'))
-		self.numClasses = rospy.get_param('/numClasses', default=2)
+		self.mask = self.data_dict["mask"]
+		self.clf = self.data_dict["clf"]
+		'''self.numClasses = rospy.get_param('/numClasses', default=2)
 
 
 		self.classLabels = np.empty(self.numClasses)
 		for i in range(0, self.numClasses):
-			self.classLabels[i] = str(i+1)
+			self.classLabels[i] = str(i+1)'''
 		
 		self.sub_data = rospy.Subscriber(self.sub_topic_data, NeuroFrame, self.onReceivedData)
 		self.pub_data = rospy.Publisher(self.pub_topic_data, NeuroOutput, queue_size=1000)
@@ -52,11 +53,11 @@ class SmrBci:
 		return True
 
 	def configureBuffer(self):
-		self.numChans = rospy.get_param('/numChans', default=16)
+		self.numChans = self.data_dict["num_chans"]
 		self.numSamples = rospy.get_param('/numSamples', default=32)
-		self.winLength = rospy.get_param('/winLength', default=1.5)
-		self.winShift = rospy.get_param('/winShift', default=0.125)
-		self.srate = rospy.get_param('/srate', default=512)
+		self.winLength = self.data_dict["win_length"]
+		self.winShift = self.data_dict["win_shift"]
+		self.srate = self.data_dict["srate"]
 		bufferlen = math.floor(self.winLength*self.srate)
 		buffershift = math.floor(self.winShift*self.srate)
 		buffer = RingBuffer(bufferlen)
@@ -64,9 +65,9 @@ class SmrBci:
 		return buffer
 
 	def configureFilter(self):
-		filter_order = rospy.get_param('/filter_order', default=[4])
-		filter_lowf = rospy.get_param('/filter_lowf', default=[16])
-		filter_highf = rospy.get_param('/filter_highf', default=[30])
+		filter_order = self.data_dict["filter_order_list"]
+		filter_lowf = self.data_dict["filter_lowf"]
+		filter_highf = self.data_dict["filter_highf"]
 		btfilter = [ButterFilter(filter_order[i], low_f=filter_lowf[i], high_f=filter_highf[i], filter_type='bandpass', fs=self.srate) for i in range(len(filter_lowf))]
 		self.numBands = len(btfilter)
 
@@ -97,7 +98,8 @@ class SmrBci:
 	def Classify(self):
 		if not(self.new_neuro_frame):
 			return False
-		labelname = ['STAND', 'WALK']
+		#labelname = ['STAND', 'WALK']
+		features = []
 		t = rospy.Time.now()
 		chunk = np.array(self.data)
 		map = np.reshape(chunk, (self.numSamples, self.numChans))
@@ -112,20 +114,15 @@ class SmrBci:
 				denv = self.hilb.get_envelope()
 				self.dentropy = self.entropy.apply(denv)
 				dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
-				self.dproba = self.clf.predict_proba(dcsp)
+				features = np.append(features, dcsp[:, self.mask[:,i] == 1])
+			features = np.reshape(features, (1, len(features)))
+			self.dproba = self.clf.predict_proba(features)
 		else:
 			rospy.loginfo('Filling the buffer')
-
-		'''if self.buffer.isFull:
-			temp = np.array(self.dentropy)
-			self.final_entropy = np.empty([int(np.shape(self.dentropy)[0]/self.numBands), self.numChans, self.numBands])
-			for i in range(self.numBands):
-				self.final_entropy[:,:, i] = temp[i::self.numBands,:]'''
-
 		
 		elapsed = (rospy.Time.now() - t).to_sec()
 		if elapsed > self.winShift:
-			rospy.loginfo('Warning! The loop had a delay of' + str(elapsed-self.winShift) + ' second')
+			rospy.loginfo('Warning! The loop had a delay of ' + str(elapsed-self.winShift) + ' second')
 		else:
 			rospy.sleep(self.winShift-elapsed)
 		return True

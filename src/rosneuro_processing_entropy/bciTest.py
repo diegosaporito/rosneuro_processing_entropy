@@ -14,7 +14,7 @@ from rosneuro_processing_entropy.bciloop_utilities.SpatialFilters import CommonS
 from rosneuro_processing_entropy.bciloop_utilities.RingBuffer import RingBuffer
 
 
-rospy.init_node("classTest")
+rospy.init_node("bciTest")
 bci = SmrBci()
 bci.configure()
 
@@ -28,6 +28,5 @@ while not rospy.is_shutdown():
 		break
 	if bci.Classify():
 		if bci.buffer.isFull:
-			print(bci.dentropy)
+			#print(bci.dentropy)
 			print(bci.dproba)
-
