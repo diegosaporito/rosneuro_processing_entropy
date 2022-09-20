@@ -18,7 +18,7 @@ class ShannonEntropy:
         maximum = np.amax(sig, axis=0)
         minimum = np.amin(sig, axis=0)
         step = (maximum - minimum) / nbins
-        sdistr = self.histogram(sig, nbins, minimum, step)
+        sdistr = self.histogram2(sig, nbins, minimum, step)
         return (-1) * np.sum(sdistr * ma.log2(sdistr), axis=0)
 
     def histogram(self, sig, nb, m, stp):
@@ -29,3 +29,10 @@ class ShannonEntropy:
             hist[idx.astype(int), np.arange(np.shape(sig)[1])] = hist[idx.astype(int), np.arange(np.shape(sig)[1])] + 1
         return hist/np.shape(sig)[0]
 
+    def histogram2(self, sig, nb, m, stp):
+        hist = np.zeros((nb, np.shape(sig)[1]))
+        idx = np.ceil((sig-m)/stp) - 1
+        idx[idx<0] = 0
+        for i in range(len(idx)):
+            hist[idx[i].astype(int), np.arange(np.shape(sig)[1])] = hist[idx[i].astype(int), np.arange(np.shape(sig)[1])] + 1
+        return hist/np.shape(sig)[0]

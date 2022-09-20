@@ -17,8 +17,7 @@ class SmrBci:
 	def __init__(self):
 		self.sub_topic_data = '/neurodata'
 		self.pub_topic_data = 'neuroprediction'
-		self.data_dict = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data', 'rb'))
-		#print(self.data_dict)
+		self.data_dict = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data/data4(62,5)', 'rb'))
 
 	def configure(self):
 		self.buffer = self.configureBuffer()
@@ -99,8 +98,8 @@ class SmrBci:
 		if not(self.new_neuro_frame):
 			return False
 		#labelname = ['STAND', 'WALK']
-		features = []
 		t = rospy.Time.now()
+		features = []
 		chunk = np.array(self.data)
 		map = np.reshape(chunk, (self.numSamples, self.numChans))
 		self.buffer.append(map)
@@ -114,12 +113,12 @@ class SmrBci:
 				denv = self.hilb.get_envelope()
 				self.dentropy = self.entropy.apply(denv)
 				dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
-				features = np.append(features, dcsp[:, self.mask[:,i] == 1])
+				features = np.append(features, dcsp[:, self.mask[:,i] == 1])				
 			features = np.reshape(features, (1, len(features)))
 			self.dproba = self.clf.predict_proba(features)
 		else:
 			rospy.loginfo('Filling the buffer')
-
+			
 		elapsed = (rospy.Time.now() - t).to_sec()
 		if elapsed > self.winShift:
 			rospy.loginfo('Warning! The loop had a delay of ' + str(elapsed-self.winShift) + ' second')
