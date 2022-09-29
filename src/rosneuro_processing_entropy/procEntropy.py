@@ -16,8 +16,10 @@ from rosneuro_processing_entropy.bciloop_utilities.RingBuffer import RingBuffer
 class SmrBci:
 	def __init__(self):
 		self.sub_topic_data = '/neurodata'
-		self.pub_topic_data = 'neuroprediction'
-		self.data_dict = pickle.load(open('src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data/data4(62,5)', 'rb'))
+		self.pub_topic_data = '/neuroprediction'
+		path_to_data = rospy.get_param('/path_to_data', default='/home/diego/catkin_ws/src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data/data4(62,5)')
+		self.data_dict = pickle.load(open(path_to_data, 'rb'))
+		self.dproba = np.empty((1,2))
 
 	def configure(self):
 		self.buffer = self.configureBuffer()
@@ -32,28 +34,28 @@ class SmrBci:
 		self.csp = [CommonSpatialPatterns(cspdimm, self.csp_coeff[i]) for i in range(self.numBands)]
 		self.mask = self.data_dict["mask"]
 		self.clf = self.data_dict["clf"]
-		'''self.numClasses = rospy.get_param('/numClasses', default=2)
+		self.numClasses = rospy.get_param('/numClasses', default=2)
 
-
-		self.classLabels = np.empty(self.numClasses)
+		self.classLabels = np.empty(self.numClasses, dtype=str)
 		for i in range(0, self.numClasses):
-			self.classLabels[i] = str(i+1)'''
+			self.classLabels[i] = str(i+1)
 		
 		self.sub_data = rospy.Subscriber(self.sub_topic_data, NeuroFrame, self.onReceivedData)
 		self.pub_data = rospy.Publisher(self.pub_topic_data, NeuroOutput, queue_size=1000)
 
-		#self.srv_classify = rospy.ServiceProxy('classify', self.onRequestClassify)
-		#self.srv_reset = rospy.ServiceProxy('reset', self.onRequestReset)
+		self.srv_classify = rospy.Service('classify', Empty, self.onRequestClassify)
+		self.srv_reset = rospy.Service('reset', Empty, self.onRequestReset)
 
 		self.new_neuro_frame = False
 
-		#self.msg_.classLabels = self.classLabels
+		self.msg = NeuroOutput()
+		self.msg.class_labels = self.classLabels
 
 		return True
 
 	def configureBuffer(self):
 		self.numChans = self.data_dict["num_chans"]
-		self.numSamples = rospy.get_param('/numSamples', default=32)
+		self.numSamples = int(rospy.get_param('/numSamples', default=32))
 		self.winLength = self.data_dict["win_length"]
 		self.winShift = self.data_dict["win_shift"]
 		self.srate = self.data_dict["srate"]
@@ -78,19 +80,19 @@ class SmrBci:
 
 	def Reset(self):
 		rospy.loginfo('Reset probabilities')
-		self.msg_.header.stamp = rospy.Time.now()
-		self.pub_data.publish(self.msg_)
+		self.msg.header.stamp = rospy.Time.now()
+		self.pub_data.publish(self.msg)
 
 	def onReceivedData(self, msg):
 		if (msg.eeg.info.nsamples == self.numSamples) and (msg.eeg.info.nchannels == self.numChans):
 			self.new_neuro_frame = True
 			self.data = msg.eeg.data
-			#self.msg.soft_predict.info = self.msg.hard_predict.info = msg.info
+			self.msg.softpredict.info = self.msg.hardpredict.info = msg.eeg.info
 	
-	def onRequestClassify (self, req, res):
+	def onRequestClassify (self, req):
 		return self.Classify()
 	
-	def onRequestReset(self, req, res):
+	def onRequestReset(self, req):
 		self.Reset()
 		return True
 	
@@ -113,16 +115,24 @@ class SmrBci:
 				denv = self.hilb.get_envelope()
 				self.dentropy = self.entropy.apply(denv)
 				dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
-				features = np.append(features, dcsp[:, self.mask[:,i] == 1])				
+				features = np.append(features, dcsp[:, self.mask[:,i] == 1])			
 			features = np.reshape(features, (1, len(features)))
 			self.dproba = self.clf.predict_proba(features)
 		else:
 			rospy.loginfo('Filling the buffer')
-			
+
 		elapsed = (rospy.Time.now() - t).to_sec()
 		if elapsed > self.winShift:
 			rospy.loginfo('Warning! The loop had a delay of ' + str(elapsed-self.winShift) + ' second')
 		else:
 			rospy.sleep(self.winShift-elapsed)
+		
+		self.msg.header.stamp = rospy.Time.now()
+		self.msg.softpredict.data = (self.dproba[0]).tolist()
+		hardpredict = np.zeros(self.numClasses, dtype=int)
+		hardpredict[np.argmax(self.dproba[0])] = 1
+		self.msg.hardpredict.data = hardpredict.tolist()
+		self.pub_data.publish(self.msg)
+
 		self.new_neuro_frame = False
 		return True

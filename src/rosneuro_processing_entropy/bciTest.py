@@ -12,6 +12,5 @@ r=rospy.Rate(256)
 while not rospy.is_shutdown():
 	if bci.Classify():
 		print("Classification started")
-		#if bci.buffer.isFull:
-			#print(bci.dproba)
+		#print(bci.dproba)
 	r.sleep()
