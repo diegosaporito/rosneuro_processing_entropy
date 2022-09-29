@@ -2,5 +2,6 @@
 	<node name="bciTest" pkg="rosneuro_processing_entropy" type="bciTest.py" output="screen">
 		<param name="path_to_data" value="/home/diego/catkin_ws/src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data/data4(62,5)"/>
 		<param name="numSamples" value="32"/>
+		<param name="numClasses" value="2"/>
 	</node>
 </launch>

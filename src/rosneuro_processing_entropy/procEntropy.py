@@ -19,7 +19,6 @@ class SmrBci:
 		self.pub_topic_data = '/neuroprediction'
 		path_to_data = rospy.get_param('/path_to_data', default='/home/diego/catkin_ws/src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data/data4(62,5)')
 		self.data_dict = pickle.load(open(path_to_data, 'rb'))
-		self.dproba = np.empty((1,2))
 
 	def configure(self):
 		self.buffer = self.configureBuffer()
@@ -35,6 +34,7 @@ class SmrBci:
 		self.mask = self.data_dict["mask"]
 		self.clf = self.data_dict["clf"]
 		self.numClasses = rospy.get_param('/numClasses', default=2)
+		self.dproba = np.empty((1, self.numClasses))
 
 		self.classLabels = np.empty(self.numClasses, dtype=str)
 		for i in range(0, self.numClasses):
