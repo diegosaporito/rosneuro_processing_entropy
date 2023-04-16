@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from procEntropy import SmrBci
+from procEntropy import *
 import rospy
 import numpy as np
 

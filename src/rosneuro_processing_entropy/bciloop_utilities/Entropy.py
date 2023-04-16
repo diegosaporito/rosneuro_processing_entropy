@@ -33,7 +33,7 @@ class ShannonEntropy:
         hist = np.zeros((nb, np.shape(sig)[1]))
         idx = np.ceil((sig-m)/stp) - 1
         idx[idx<0] = 0
-        for i in range(len(idx)):
-            if i%2==0:
-                hist[idx[i].astype(int), np.arange(np.shape(sig)[1])] = hist[idx[i].astype(int), np.arange(np.shape(sig)[1])] + 1
-        return hist/np.shape(sig)[0]
+        idx[np.argwhere(np.isnan(idx))]=0
+        for i in range(0, len(idx), 2):
+            hist[idx[i].astype(int), np.arange(np.shape(sig)[1])] = hist[idx[i].astype(int), np.arange(np.shape(sig)[1])] + 1
+        return hist/(np.shape(sig)[0]/2)

@@ -20,7 +20,7 @@ class SmrBci:
 		self.sub_topic_data = '/neurodata'
 		self.pub_topic_data = '/neuroprediction'
 		self.pub_topic_idata = '/integrator/neuroprediction'
-		path_to_data = rospy.get_param('/data_path', default='/home/diego/catkin_ws/src/rosneuro_processing_entropy/src/rosneuro_processing_entropy/data/data4(62,5-128)')
+		path_to_data = rospy.get_param('/data_path', default='/home/diego/data')
 		self.data_dict = pickle.load(open(path_to_data, 'rb'))
 
 	def configure(self):
@@ -44,8 +44,10 @@ class SmrBci:
 			self.rejection = self.data_dict["rejection"]
 			self.begin = self.data_dict["begin"]
 			self.integrator = ExponentialIntegrator(self.alpha, self.threshold, self.rejection, self.begin)
+			self.ind_col = self.data_dict["ind_col"]
 		except:
 			self.integrator = ExponentialIntegrator()
+			self.ind_col = None
 		self.pred = None
 		self.ipp = None
 
@@ -137,7 +139,11 @@ class SmrBci:
 				self.hilb.apply(dfilt)
 				denv = self.hilb.get_envelope()
 				self.dentropy = self.entropy.apply(denv)
-				dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
+				if self.ind_col == None:
+					dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
+				else:
+					self.dentropy = self.dentropy[list(self.ind_col)]
+					dcsp = self.csp[i].apply(np.reshape(self.dentropy, (1, len(self.dentropy))))
 				features = np.append(features, dcsp[:, self.mask[:,i] == 1])			
 			features = np.reshape(features, (1, len(features)))
 			self.dproba = self.clf.predict_proba(features)
